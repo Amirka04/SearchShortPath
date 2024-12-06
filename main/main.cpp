@@ -60,6 +60,84 @@ float standardDeviation(const std::vector<float>& values, float mean) {
 
 
 
+// Генерация соединений
+// void GenerateLink(std::map<int, std::vector<int>>& graph, std::vector<Point>& points) {
+//     // Инициализация графа
+//     for (int i = 0; i < points.size(); ++i) {
+//         std::vector<int> neighbors;
+//         graph[i] = neighbors;
+//     }
+
+//     // Найдём соединения относительно расстояния других точек
+//     for (int i = 0; i < points.size(); ++i) {
+//         std::vector<std::pair<float, int>> distances;
+//         for (int j = 0; j < points.size(); ++j)
+//             if (i != j)
+//                 distances.push_back({distance(points[i].circle, points[j].circle), j});
+
+//         std::sort(distances.begin(), distances.end());
+        
+//         int count = graph[i].size();
+//         // Сначало ищем максимально близкие к нам точки
+//         for(auto j : distances) {
+//             // соединение вершин всегда взаимное, по этому при добавлений мы должны проверить на добавлую вершину, и уже от этого исходить, а так же учесть кол-во точек
+//             if(std::distance(graph[j.second].begin(), std::find(graph[j.second].begin(), graph[j.second].end(), i)) != graph[j.second].size()) {
+//                 if(count <= 6) break;
+
+//                 graph[i].push_back(j.second);
+//                 graph[j.second].push_back(i);
+//                 ++count;
+//             }
+//         }
+
+//         // гарантируем минимум 2 соединения
+//         while (graph[i].size() < 2 && distances.size() > 1){
+//             graph[i].push_back(distances[graph[i].size()].second);
+//         }
+//     }
+// }
+
+
+std::map<int, std::vector<int>> createGraph(const std::vector<Point>& points, int minConnections) {
+    std::map<int, std::vector<int>> graph;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    if (points.empty()) return graph; // Обработка пустого вектора
+
+    for (size_t i = 0; i < points.size(); ++i) {
+        std::vector<int> connected_points;
+        int num_connections = 0;
+
+        while (num_connections < minConnections) {
+            int connected_point_index;
+            do {
+              connected_point_index = gen() % points.size(); //Более эффективная генерация случайных чисел
+            } while (connected_point_index == i || std::find(connected_points.begin(), connected_points.end(), connected_point_index) != connected_points.end());
+            connected_points.push_back(connected_point_index);
+            graph[i].push_back(connected_point_index);
+            graph[connected_point_index].push_back(i); // Неориентированный граф
+            num_connections++;
+        }
+
+
+        //Добавим случайное количество дополнительных соединений, но не более 6
+        int max_additional = std::min(6-minConnections, (int)points.size() -1 - minConnections);
+        int additional_connections = gen() % (max_additional + 1);
+        for (int j = 0; j < additional_connections; ++j) {
+            int connected_point_index;
+            do {
+                connected_point_index = gen() % points.size();
+            } while (connected_point_index == i || std::find(connected_points.begin(), connected_points.end(), connected_point_index) != connected_points.end());
+            connected_points.push_back(connected_point_index);
+            graph[i].push_back(connected_point_index);
+            graph[connected_point_index].push_back(i);
+        }
+
+    }
+    return graph;
+}
+
 
 int main() {
     srand(time(0));
@@ -104,8 +182,11 @@ int main() {
 
     // Это граф, его структура это словарь, ключами которого являются целые числа (id точек на окружности)
     // а значения это id точек с которыми он смежен
-    std::map<int, std::vector<int>> graph;
-
+    std::map<int, std::vector<int>> graph = createGraph(points, 2);
+    
+    // Короткий путь
+    std::vector<int> shortPath;
+    
 
     // Кнопка
     Rectangle generateButtonBounds;
@@ -126,6 +207,7 @@ int main() {
         generatedButtonPressed = GuiButton(generateButtonBounds, "Generate");
         if(generatedButtonPressed){
             Generate(points, circle);
+            graph = createGraph(points, 2);
         }
 
         GuiGroupBox(VisualizeGroupBounds, "Visualization");
@@ -136,9 +218,11 @@ int main() {
             for(int j = 0; j < graph[i].size(); ++j)
                 DrawLine(points[i].circle.x, points[i].circle.y, points[graph[i][j]].circle.x, points[graph[i][j]].circle.y, BEIGE);
         
+        
         // for(i = 1; i < points.size(); ++i)
         //         DrawLine(points[i-1].circle.x, points[i-1].circle.y, points[i].circle.x, points[i].circle.y, RED);
         
+
         // Draw pixels
         for(i = 0; i < points.size(); ++i) {
             if(i == 0)
