@@ -1,0 +1,10 @@
+#!/bin/bash
+
+mkdir linux
+cd linux
+cmake ..
+cmake --build .
+cd ..
+cp source/TerminusBlackSsiBold.ttf linux/main
+cd linux/main/
+./main
