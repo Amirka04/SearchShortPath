@@ -266,6 +266,7 @@ int main() {
             if(abs(begin - lastBegin) > 0 || abs(end - lastEnd) > 0) {
                 isSearchPath = false;
                 shortPath.clear();
+                lenght = 0;
             }
         }
         searchButtonPressed = GuiButton(SSPathBound, "Search and Show Short Path");
@@ -285,6 +286,7 @@ int main() {
             GenerateGraph(graph, points);
             isSearchPath = false;
             shortPath.clear();
+            lenght = 0;
         }
         GuiLabel(ResultLabel, ("Result: " + std::to_string(lenght * 10) + " USD").c_str());
 
