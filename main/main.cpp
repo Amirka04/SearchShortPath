@@ -5,14 +5,14 @@
 #include <ctime>
 #include <algorithm>
 #include <numeric>
+#include <cstring>
 
 
 // графические библиотеки которые я использовал для визуализации результата
 #define RAYGUI_IMPLEMENTATION
-#include "raygui.h"
 #include "raylib.h"
+#include "raygui.h"
 #include "raymath.h"
-
 
 
 struct Circle {
@@ -38,7 +38,7 @@ void Generate(std::vector<Point>& points, Circle d) {
 
         // Не забудем что я использую не структуру, а структуру данных с изменённым типом данных
         points[i].index = i;
-        points[i].circle = (Circle){d.x + r * std::cos(theta), d.y + r * std::sin(theta), 3, ORANGE};
+        points[i].circle = (Circle){d.x + r * std::cos(theta), d.y + r * std::sin(theta), 4, ORANGE};
     }
 }
 
@@ -59,84 +59,34 @@ float standardDeviation(const std::vector<float>& values, float mean) {
 }
 
 
-
-// Генерация соединений
-// void GenerateLink(std::map<int, std::vector<int>>& graph, std::vector<Point>& points) {
-//     // Инициализация графа
-//     for (int i = 0; i < points.size(); ++i) {
-//         std::vector<int> neighbors;
-//         graph[i] = neighbors;
-//     }
-
-//     // Найдём соединения относительно расстояния других точек
-//     for (int i = 0; i < points.size(); ++i) {
-//         std::vector<std::pair<float, int>> distances;
-//         for (int j = 0; j < points.size(); ++j)
-//             if (i != j)
-//                 distances.push_back({distance(points[i].circle, points[j].circle), j});
-
-//         std::sort(distances.begin(), distances.end());
-        
-//         int count = graph[i].size();
-//         // Сначало ищем максимально близкие к нам точки
-//         for(auto j : distances) {
-//             // соединение вершин всегда взаимное, по этому при добавлений мы должны проверить на добавлую вершину, и уже от этого исходить, а так же учесть кол-во точек
-//             if(std::distance(graph[j.second].begin(), std::find(graph[j.second].begin(), graph[j.second].end(), i)) != graph[j.second].size()) {
-//                 if(count <= 6) break;
-
-//                 graph[i].push_back(j.second);
-//                 graph[j.second].push_back(i);
-//                 ++count;
-//             }
-//         }
-
-//         // гарантируем минимум 2 соединения
-//         while (graph[i].size() < 2 && distances.size() > 1){
-//             graph[i].push_back(distances[graph[i].size()].second);
-//         }
-//     }
-// }
-
-
-std::map<int, std::vector<int>> createGraph(const std::vector<Point>& points, int minConnections) {
-    std::map<int, std::vector<int>> graph;
-    std::random_device rd;
-    std::mt19937 gen(rd());
-
-    if (points.empty()) return graph; // Обработка пустого вектора
-
-    for (size_t i = 0; i < points.size(); ++i) {
-        std::vector<int> connected_points;
-        int num_connections = 0;
-
-        while (num_connections < minConnections) {
-            int connected_point_index;
-            do {
-              connected_point_index = gen() % points.size(); //Более эффективная генерация случайных чисел
-            } while (connected_point_index == i || std::find(connected_points.begin(), connected_points.end(), connected_point_index) != connected_points.end());
-            connected_points.push_back(connected_point_index);
-            graph[i].push_back(connected_point_index);
-            graph[connected_point_index].push_back(i); // Неориентированный граф
-            num_connections++;
-        }
-
-
-        //Добавим случайное количество дополнительных соединений, но не более 6
-        int max_additional = std::min(6-minConnections, (int)points.size() -1 - minConnections);
-        int additional_connections = gen() % (max_additional + 1);
-        for (int j = 0; j < additional_connections; ++j) {
-            int connected_point_index;
-            do {
-                connected_point_index = gen() % points.size();
-            } while (connected_point_index == i || std::find(connected_points.begin(), connected_points.end(), connected_point_index) != connected_points.end());
-            connected_points.push_back(connected_point_index);
-            graph[i].push_back(connected_point_index);
-            graph[connected_point_index].push_back(i);
-        }
-
+void GenerateGraph(std::map<int, std::vector<int>>& graph, std::vector<Point> points) {
+    int i;
+    float minDistance = 200;
+    
+    // инициализирую граф
+    for(i = 0; i < points.size(); ++i) {
+        std::vector<int> vertexes;
+        graph[i] = vertexes;
     }
-    return graph;
+
+    for(i = 0; i < points.size(); ++i) {
+        // массив расстояний до каждой точки
+        std::vector<std::pair<float, int>> distances;
+        for(int j = 0; j < points.size(); ++j)
+            if(i != j) 
+                distances.push_back(std::make_pair(distance(points[i].circle, points[j].circle), j));
+        // Сортируем точки с минимальным расстоянием были у нас спереди
+        std::sort(distances.begin(), distances.end());
+        
+        // При добавлении учту что у нас не ориентированный граф, при соединении одной вершины к другой нужно их взаимно добавить друг другу
+        for(int j = 0; j < distances.size(); ++j) {
+            if(graph[i].size() >= 6) break;
+            graph[i].push_back(distances[j].second);
+            graph[distances[j].second].push_back(i);
+        }
+    }
 }
+
 
 
 int main() {
@@ -174,16 +124,17 @@ int main() {
     circle.r = VisualizeGroupBounds.width / 2.0f - 20.0f;
     circle.color = BLACK;
 
-    
     // точки которые мы генерируем внутри окружности
-    std::vector<Point> points(9);
+    std::vector<Point> points(100);
     Generate(points, circle);
 
 
     // Это граф, его структура это словарь, ключами которого являются целые числа (id точек на окружности)
     // а значения это id точек с которыми он смежен
-    std::map<int, std::vector<int>> graph = createGraph(points, 2);
-    
+    std::map<int, std::vector<int>> graph;
+    GenerateGraph(graph, points);
+
+
     // Короткий путь
     std::vector<int> shortPath;
     
@@ -193,11 +144,29 @@ int main() {
     generateButtonBounds.x = UIGroupBounds.x + 10.0f;
     generateButtonBounds.y = UIGroupBounds.y + 10.0f;
     generateButtonBounds.width = UIGroupBounds.width - 20.0f;
-    generateButtonBounds.height = UIGroupBounds.height / 10.0f;
+    generateButtonBounds.height = UIGroupBounds.height / 15.0f;
+
+    Rectangle beginLabelBound = generateButtonBounds;
+    beginLabelBound.y = generateButtonBounds.y + beginLabelBound.height + 20.0f;
+    float startY = generateButtonBounds.y;
+
+    Rectangle entryBeginPoint = beginLabelBound;
+    entryBeginPoint.y = beginLabelBound.y + entryBeginPoint.height + 10.0f;
+    
+    Rectangle endLabelBound = beginLabelBound;
+    endLabelBound.y = beginLabelBound.y + endLabelBound.height * 2 + 20.0f;
+    
+    Rectangle entryEndPoint = endLabelBound;
+    entryEndPoint.y = endLabelBound.y + entryEndPoint.height + 10.0f;
 
     int generatedButtonPressed = 0;
+    
+    int begin = -1, end = -1;
 
     int i;
+
+    bool beginSpinnerEditMode = false;
+    bool endSpinnerEditMode = false;
 
     while(!WindowShouldClose()) {
         BeginDrawing();
@@ -205,9 +174,28 @@ int main() {
 
         GuiGroupBox(UIGroupBounds, "UI");
         generatedButtonPressed = GuiButton(generateButtonBounds, "Generate");
+        GuiLabel(beginLabelBound, "Begin");
+        GuiSpinner(entryBeginPoint, "", &begin, -1, points.size() - 1, beginSpinnerEditMode);
+        GuiSpinner(entryEndPoint, "", &end, -1, points.size() - 1, endSpinnerEditMode);
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            Vector2 mousePos = GetMousePosition();
+            if (CheckCollisionPointRec(mousePos, entryBeginPoint)) {
+                beginSpinnerEditMode = true;
+                endSpinnerEditMode = false;
+            } else if (CheckCollisionPointRec(mousePos, entryEndPoint)) {
+                beginSpinnerEditMode = false;
+                endSpinnerEditMode = true;
+            } else {
+                beginSpinnerEditMode = false;
+                endSpinnerEditMode = false;
+            }
+        }
+
+
+        GuiLabel(endLabelBound, "End");
         if(generatedButtonPressed){
             Generate(points, circle);
-            graph = createGraph(points, 2);
+            GenerateGraph(graph, points);
         }
 
         GuiGroupBox(VisualizeGroupBounds, "Visualization");
@@ -218,16 +206,11 @@ int main() {
             for(int j = 0; j < graph[i].size(); ++j)
                 DrawLine(points[i].circle.x, points[i].circle.y, points[graph[i][j]].circle.x, points[graph[i][j]].circle.y, BEIGE);
         
-        
-        // for(i = 1; i < points.size(); ++i)
-        //         DrawLine(points[i-1].circle.x, points[i-1].circle.y, points[i].circle.x, points[i].circle.y, RED);
-        
-
         // Draw pixels
         for(i = 0; i < points.size(); ++i) {
-            if(i == 0)
+            if(i == begin)
                 DrawCircle(points[i].circle.x, points[i].circle.y, points[i].circle.r, RED);
-            else if(i == (points.size() - 1))
+            else if(i == end)
                 DrawCircle(points[i].circle.x, points[i].circle.y, points[i].circle.r, GREEN);
             else
                 DrawCircle(points[i].circle.x, points[i].circle.y, points[i].circle.r, points[i].circle.color);
