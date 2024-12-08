@@ -286,7 +286,7 @@ int main() {
             isSearchPath = false;
             shortPath.clear();
         }
-        GuiLabel(ResultLabel, ("Result: " + std::to_string(lenght) + " USD").c_str());
+        GuiLabel(ResultLabel, ("Result: " + std::to_string(lenght * 10) + " USD").c_str());
 
 
         GuiGroupBox(VisualizeGroupBounds, "Visualization");
