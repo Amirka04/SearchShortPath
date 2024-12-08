@@ -58,7 +58,6 @@ float standardDeviation(const std::vector<float>& values, float mean) {
     return std::sqrt(sum / values.size());
 }
 
-
 void GenerateGraph(std::map<int, std::vector<int>>& graph, std::vector<Point> points) {
     int i;
     float minDistance = 200;
