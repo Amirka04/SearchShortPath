@@ -7,6 +7,8 @@
 #include <numeric>
 #include <cstring>
 #include <set>
+#include <stack>
+#include <queue>
 
 
 // графические библиотеки которые я использовал для визуализации результата
@@ -26,6 +28,14 @@ struct Point {
     Circle circle;
 };
 
+// Структура для ребра
+struct Edge {
+    int u, v;
+    float weight;
+};
+
+
+
 // уведомление об ошибке
 bool isError = false;
 char errMsg[1024];
@@ -33,6 +43,7 @@ char errMsg[1024];
 
 // Генерация случайных чисел с плавающей точкой
 float floatRand() { return static_cast<double>(rand()) / RAND_MAX; }
+
 
 // Генерация точек в окружности
 void Generate(std::vector<Point>& points, Circle d) {
@@ -46,25 +57,18 @@ void Generate(std::vector<Point>& points, Circle d) {
     }
 }
 
+
 float distance(Circle c1, Circle c2) {
     return sqrt((c1.x - c2.x)*(c1.x - c2.x) + (c1.y - c2.y)*(c1.y - c2.y));
 }
 
-float mean(const std::vector<float>& values) {
-    return std::accumulate(values.begin(), values.end(), 0.0) / values.size();
-}
-
-float standardDeviation(const std::vector<float>& values, float mean) {
-    float sum = 0.0;
-    for (float value : values) {
-        sum += (value - mean) * (value - mean);
-    }
-    return std::sqrt(sum / values.size());
+// Сравнение ребер по весу
+bool compareEdges(const Edge& a, const Edge& b) {
+    return a.weight < b.weight;
 }
 
 void GenerateGraph(std::map<int, std::vector<int>>& graph, std::vector<Point> points) {
     int i;
-    float minDistance = 200;
     
     // инициализирую граф
     for(i = 0; i < points.size(); ++i) {
@@ -89,7 +93,6 @@ void GenerateGraph(std::map<int, std::vector<int>>& graph, std::vector<Point> po
         }
     }
 }
-
 
 
 // Функция для восстановления пути от стартовой вершины до целевой
@@ -146,6 +149,51 @@ void SearchShortPath(std::map<int, std::vector<int>> graph, std::vector<Point> p
 }
 
 
+
+
+// Алгоритм Прима для нахождения минимального остовного дерева
+std::map<int, std::vector<int>> primMST(const std::map<int, std::vector<int>>& graph, const std::vector<Point>& points, float& totalLength) {
+    std::map<int, std::vector<int>> mst; // Результирующее MST
+    std::set<int> visited; // Множество посещённых вершин
+    std::priority_queue<Edge, std::vector<Edge>, decltype(&compareEdges)> pq(compareEdges); // Очередь с приоритетом для рёбер
+    totalLength = 0.0f; // Суммарный вес MST
+
+    // Начинаем с первой вершины (можно выбрать любую)
+    int startNode = 0;
+    visited.insert(startNode);
+
+    // Добавляем все рёбра из начальной вершины в очередь
+    for (int neighbor : graph.at(startNode)) {
+        pq.push({startNode, neighbor, distance(points[startNode].circle, points[neighbor].circle)});
+    }
+
+    while (!pq.empty()) {
+        Edge edge = pq.top();
+        pq.pop();
+        int u = edge.u;
+        int v = edge.v;
+
+        // Если вершина v ещё не посещена
+        if (visited.find(v) == visited.end()) {
+            visited.insert(v);
+            mst[u].push_back(v);
+            mst[v].push_back(u); // Неориентированный граф
+            totalLength += edge.weight; // Добавляем вес ребра к суммарному весу
+
+            // Добавляем все рёбра из вершины v в очередь
+            for (int neighbor : graph.at(v)) {
+                if (visited.find(neighbor) == visited.end()) {
+                    pq.push({v, neighbor, distance(points[v].circle, points[neighbor].circle)});
+                }
+            }
+        }
+    }
+
+    return mst;
+}
+
+
+
 int main() {
     srand(time(0));
 
@@ -194,13 +242,13 @@ int main() {
     // Это граф, его структура это словарь, ключами которого являются целые числа (id точек на окружности)
     // а значения это id точек с которыми он смежен
     std::map<int, std::vector<int>> graph;
-    float lenght = 0;
+    std::vector<int> minPath;
+    std::map<int, std::vector<int>> mst;
+    float length = 0;
     GenerateGraph(graph, points);
 
-
     // Короткий путь
-    std::vector<int> shortPath;
-    
+    std::vector<int> shortPath;    
 
     // Кнопка
     Rectangle generateButtonBounds;
@@ -225,11 +273,17 @@ int main() {
     Rectangle SSPathBound = entryEndPoint;
     SSPathBound.y = entryEndPoint.y + SSPathBound.height + 10.0f;
 
-    Rectangle ResultLabel = SSPathBound;
-    ResultLabel.y = SSPathBound.y + ResultLabel.height + 10.0f;
+    Rectangle MinimizeGraphBound = SSPathBound;
+    MinimizeGraphBound.y = SSPathBound.y + MinimizeGraphBound.height + 10.0f;
+    
+    Rectangle ResultLabel = MinimizeGraphBound;
+    ResultLabel.y = MinimizeGraphBound.y + ResultLabel.height + 10.0f;
+
+
 
     int generatedButtonPressed = 0;
     int searchButtonPressed = 0;
+    int minimizeGraphPressed = 0;
     
     int begin = -1, end = -1;
     int lastBegin = begin, lastEnd = end;
@@ -240,6 +294,8 @@ int main() {
     bool endSpinnerEditMode = false;
 
     bool isSearchPath = false;
+    bool isMinimizeGraph = false;
+
 
 
     while(!WindowShouldClose()) {
@@ -266,7 +322,7 @@ int main() {
             if(abs(begin - lastBegin) > 0 || abs(end - lastEnd) > 0) {
                 isSearchPath = false;
                 shortPath.clear();
-                lenght = 0;
+                length = 0;
             }
         }
         searchButtonPressed = GuiButton(SSPathBound, "Search and Show Short Path");
@@ -276,34 +332,53 @@ int main() {
                 strcpy(errMsg, "The starting or ending vertices are not selected");
             }
             else {
-                SearchShortPath(graph, points, shortPath, points[begin], points[end], lenght);
+                SearchShortPath(graph, points, shortPath, points[begin], points[end], length);
+                isMinimizeGraph = false;
                 isSearchPath = true;
             }
         }
+        minimizeGraphPressed = GuiButton(MinimizeGraphBound, "Finding a short path between all vertices");
         GuiLabel(endLabelBound, "End");
         if(generatedButtonPressed){
             Generate(points, circle);
             GenerateGraph(graph, points);
             isSearchPath = false;
+            isMinimizeGraph = false;
             shortPath.clear();
-            lenght = 0;
+            length = 0;
         }
-        GuiLabel(ResultLabel, ("Result: " + std::to_string(lenght * 10) + " USD").c_str());
+        if(minimizeGraphPressed) {
+            isSearchPath = false;
+            mst = primMST(graph, points, length);
+            isMinimizeGraph = true;
+        }
+
+        GuiLabel(ResultLabel, ("Result: " + std::to_string(length * 10) + " USD").c_str());
 
 
         GuiGroupBox(VisualizeGroupBounds, "Visualization");
         DrawCircleLines(circle.x, circle.y, circle.r, circle.color);
 
-        // Draw lines
-        for(i = 0; i < points.size(); ++i)
-            for(int j = 0; j < graph[i].size(); ++j)
-                DrawLine(points[i].circle.x, points[i].circle.y, points[graph[i][j]].circle.x, points[graph[i][j]].circle.y, BEIGE);
+        // Рисование линий
+        // if(!isMinimizeGraph)
+            for(i = 0; i < points.size(); ++i)
+                for(int j = 0; j < graph[i].size(); ++j)
+                    DrawLine(points[i].circle.x, points[i].circle.y, points[graph[i][j]].circle.x, points[graph[i][j]].circle.y, BEIGE);
         
+        // Рисование короткого маршрута
         if(isSearchPath)
             for(i = 0; i < shortPath.size() - 1; ++i)
                 DrawLine(points[shortPath[i]].circle.x, points[shortPath[i]].circle.y, points[shortPath[i + 1]].circle.x, points[shortPath[i + 1]].circle.y, BLUE);
 
-        // Draw pixels
+
+        if(isMinimizeGraph)
+            for(i = 0; i < points.size(); ++i)
+                for(int j = 0; j < mst[i].size(); ++j)
+                    DrawLine(points[i].circle.x, points[i].circle.y, points[graph[i][j]].circle.x, points[graph[i][j]].circle.y, BLUE);
+
+        
+
+        // Рисование точек
         for(i = 0; i < points.size(); ++i) {
             if(i == begin)
                 DrawCircle(points[i].circle.x, points[i].circle.y, points[i].circle.r + 1.5, RED);
@@ -316,7 +391,6 @@ int main() {
         if(isError) {
             int result = GuiMessageBox((Rectangle){ GetScreenWidth() / 2.0f - 500 / 2.0f, GetScreenHeight() / 2.0f - 200 / 2.0f, 500, 200 },
                     "#191#Error Box", errMsg, "Ok");
-
             if (result >= 0) isError = false;
         }
 
