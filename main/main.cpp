@@ -149,48 +149,42 @@ void SearchShortPath(std::map<int, std::vector<int>> graph, std::vector<Point> p
 }
 
 
+std::map<int, int> primMST(std::map<int, std::vector<int>> graph, std::vector<Point> points, float& length) {
+    std::map<int, int> mst;
+    std::set<int> visited;
 
+    visited.insert(points[0].index);
 
-// Алгоритм Прима для нахождения минимального остовного дерева
-std::map<int, std::vector<int>> primMST(const std::map<int, std::vector<int>>& graph, const std::vector<Point>& points, float& totalLength) {
-    std::map<int, std::vector<int>> mst; // Результирующее MST
-    std::set<int> visited; // Множество посещённых вершин
-    std::priority_queue<Edge, std::vector<Edge>, decltype(&compareEdges)> pq(compareEdges); // Очередь с приоритетом для рёбер
-    totalLength = 0.0f; // Суммарный вес MST
+    while (visited.size() < points.size()) {
+        float minDistance = std::numeric_limits<float>::max();
+        int minVertex = -1;
+        int parentVertex = -1;
 
-    // Начинаем с первой вершины (можно выбрать любую)
-    int startNode = 0;
-    visited.insert(startNode);
-
-    // Добавляем все рёбра из начальной вершины в очередь
-    for (int neighbor : graph.at(startNode)) {
-        pq.push({startNode, neighbor, distance(points[startNode].circle, points[neighbor].circle)});
-    }
-
-    while (!pq.empty()) {
-        Edge edge = pq.top();
-        pq.pop();
-        int u = edge.u;
-        int v = edge.v;
-
-        // Если вершина v ещё не посещена
-        if (visited.find(v) == visited.end()) {
-            visited.insert(v);
-            mst[u].push_back(v);
-            mst[v].push_back(u); // Неориентированный граф
-            totalLength += edge.weight; // Добавляем вес ребра к суммарному весу
-
-            // Добавляем все рёбра из вершины v в очередь
-            for (int neighbor : graph.at(v)) {
-                if (visited.find(neighbor) == visited.end()) {
-                    pq.push({v, neighbor, distance(points[v].circle, points[neighbor].circle)});
+        // Проходим по всем посещенным вершинам
+        for (int u : visited) {
+            for (int v : graph.at(u)) {
+                if (visited.find(v) == visited.end()) {
+                    float tmpDistance = distance(points[u].circle, points[v].circle);
+                    if (tmpDistance < minDistance) {
+                        minDistance = tmpDistance;
+                        minVertex = v;
+                        parentVertex = u;
+                    }
                 }
             }
+        }
+
+        if (minVertex != -1) {
+            mst[minVertex] = parentVertex;
+            visited.insert(minVertex);
+            length += minDistance;
         }
     }
 
     return mst;
 }
+
+
 
 
 
@@ -200,7 +194,7 @@ int main() {
     // Размеры окна и его инициализация
     float screenWidth = 1400;
     float screenHeight = 800;
-    InitWindow(screenWidth, screenHeight, "Поиск кратчайшего пути. ТЗ MAD DEVS");
+    InitWindow(screenWidth, screenHeight, "ТЗ MAD DEVS");
     SetTargetFPS(60);
 
     Font customFont = LoadFont("TerminusBlackSsiBold.ttf");
@@ -243,7 +237,7 @@ int main() {
     // а значения это id точек с которыми он смежен
     std::map<int, std::vector<int>> graph;
     std::vector<int> minPath;
-    std::map<int, std::vector<int>> mst;
+    std::map<int, int> mst;
     float length = 0;
     GenerateGraph(graph, points);
 
@@ -280,7 +274,6 @@ int main() {
     ResultLabel.y = MinimizeGraphBound.y + ResultLabel.height + 10.0f;
 
 
-
     int generatedButtonPressed = 0;
     int searchButtonPressed = 0;
     int minimizeGraphPressed = 0;
@@ -295,7 +288,6 @@ int main() {
 
     bool isSearchPath = false;
     bool isMinimizeGraph = false;
-
 
 
     while(!WindowShouldClose()) {
@@ -360,10 +352,9 @@ int main() {
         DrawCircleLines(circle.x, circle.y, circle.r, circle.color);
 
         // Рисование линий
-        // if(!isMinimizeGraph)
-            for(i = 0; i < points.size(); ++i)
-                for(int j = 0; j < graph[i].size(); ++j)
-                    DrawLine(points[i].circle.x, points[i].circle.y, points[graph[i][j]].circle.x, points[graph[i][j]].circle.y, BEIGE);
+        for(i = 0; i < points.size(); ++i)
+            for(int j = 0; j < graph[i].size(); ++j)
+                DrawLine(points[i].circle.x, points[i].circle.y, points[graph[i][j]].circle.x, points[graph[i][j]].circle.y, BEIGE);
         
         // Рисование короткого маршрута
         if(isSearchPath)
@@ -372,9 +363,8 @@ int main() {
 
 
         if(isMinimizeGraph)
-            for(i = 0; i < points.size(); ++i)
-                for(int j = 0; j < mst[i].size(); ++j)
-                    DrawLine(points[i].circle.x, points[i].circle.y, points[graph[i][j]].circle.x, points[graph[i][j]].circle.y, BLUE);
+            for(const auto& [first, second] : mst)
+                DrawLine( points[first].circle.x, points[first].circle.y, points[second].circle.x, points[second].circle.y, BLUE );
 
         
 
